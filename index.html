@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Гули Ромашка — Ё Қалби ту медорад?</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:linear-gradient(180deg,#0d1b2a 0%,#1b263b 45%,#2d3436 100%);
+ font-family:'Segoe UI',Tahoma,sans-serif;display:flex;flex-direction:column;
+ align-items:center;justify-content:center;overflow:hidden;color:#fff}
+canvas{position:fixed;inset:0;width:100vw;height:100vh;z-index:0}
+.ui{position:relative;z-index:2;text-align:center;padding:20px;max-width:560px}
+h1{font-size:clamp(22px,4vw,40px);margin-bottom:10px;
+ background:linear-gradient(90deg,#ffd166,#ff9ec7,#8ecae6);-webkit-background-clip:text;
+ -webkit-text-fill-color:transparent;text-shadow:0 2px 20px rgba(0,0,0,.3)}
+p.sub{font-size:clamp(13px,2vw,18px);color:#c9d6e4;margin-bottom:26px;line-height:1.6}
+.box{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
+ border-radius:22px;padding:22px 26px;backdrop-filter:blur(10px);
+ box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.q{font-size:clamp(16px,2.4vw,24px);margin-bottom:16px;color:#fff}
+.btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+button{font-family:inherit;font-size:clamp(14px,2vw,18px);font-weight:600;cursor:pointer;
+ padding:12px 26px;border:none;border-radius:30px;transition:.25s;transform:translateY(0)}
+#yes{background:linear-gradient(90deg,#ff5f8f,#ff9a76);color:#fff;box-shadow:0 6px 20px rgba(255,95,143,.45)}
+#no{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3)}
+button:hover{transform:translateY(-3px) scale(1.04)}
+#msg{margin-top:16px;font-size:clamp(14px,2vw,20px);min-height:28px;color:#ffd166}
+.counter{margin-top:20px;font-size:clamp(13px,1.8vw,17px);color:#8ecae6}
+.heart{display:inline-block;animation:beat 1s infinite}
+@keyframes beat{0%,100%{transform:scale(1)}30%{transform:scale(1.35)}60%{transform:scale(.95)}}
+.hint{margin-top:14px;font-size:12px;color:#8899aa}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="ui">
+  <h1>🌼 Гули Ромашка</h1>
+  <p class="sub">Аз тухум то гул — ҳама чиз аз тавақти ишқ мешавад.<br>
+  Як гул барои ту давида шуд, танҳо саволро ҷавоб деҳ...</p>
+
+  <div class="box">
+    <div class="q">То ҷумъаи дил мӯҳибӣ мӯсалламӣ мӯҳаббат аст?<br>
+      <small style="font-size:14px;color:#9fb0c3">— О чӣ гуна дар ин зиндагӣ ҳаст, ё не?</small></div>
+    <div class="btns">
+      <button id="yes">❤️ ҲА, ДУСТ ДОРАМ!</button>
+      <button id="no">💔 Не...</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="counter">
+    Ҳамон ки зуд мегӯяд: <span id="count">0</span> <span class="heart">❤️</span>
+  </div>
+  <div class="hint">Барои ҳаракати тухум лӯма ба растани тухум клик кӯ</div>
+</div>
+
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=cv.width=innerWidth*DPR;H=cv.height=innerHeight*DPR;
+ cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';ctx.setTransform(DPR,0,0,DPR,0,0)}
+resize();addEventListener('resize',resize);
+const w=()=>innerWidth,h=()=>innerHeight;
+
+/* ---------- Иқтисосӣ ---------- */
+let flowers=[],particles=[],pollen=[],t=0,count=0,yesPressed=false,noCount=0;
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+class Flower{
+ constructor(x,y,delay){
+  this.x=x;this.y=y;this.g=0;this.max=rnd(.9,1.25);
+  this.stem=rnd(.62,.85)*h();        // баландӣ
+  this.petals=12+Math.floor(Math.random()*4);
+  this.hue=rnd(44,58);               // сафед-зард
+  this.size=rnd(26,44);
+  this.delay=delay;this.phase=rnd(0,6.28);
+  this.bloom=0;this.sway=rnd(.6,1.3);
+ }
+ step(){
+  if(this.delay>0){this.delay-=.016;return}
+  if(this.g<this.max){this.g+=.004}
+  else if(this.bloom<1){this.bloom+=.012}
+ }
+ get top(){return this.y-this.stem*this.g}
+ draw(){
+  const sway=Math.sin(t*.018*this.sway+this.phase)*10*this.g;
+  const topX=this.x+sway, topY=this.top;
+  ctx.save();
+  // сабз (стебел)
+  ctx.strokeStyle='#2f7d4f';ctx.lineWidth=4*this.g+1;
+  ctx.beginPath();ctx.moveTo(this.x,this.y);
+  ctx.quadraticCurveTo(this.x+sway*.4,this.y-this.stem*.55,topX,topY);ctx.stroke();
+  // барги паҳлӯ
+  if(this.g>.35){const lp=this.g/.7;
+   ctx.fillStyle='#3a9c5f';
+   for(const s of[-1,1]){ctx.save();ctx.translate(this.x+sway*.35,this.y-this.stem*.42);
+    ctx.rotate(s*.8);ctx.beginPath();ctx.ellipse(s*22*lp,0,20*lp,8*lp,0,0,6.28);ctx.fill();ctx.restore()}}
+  // гул
+  if(this.bloom>0){
+   const b=this.bloom, s=this.size*b, px=topX, py=topY;
+   ctx.globalAlpha=Math.min(1,b*1.4);
+   for(let i=0;i<this.petals;i++){
+    const a=i/this.petals*Math.PI*2+t*.012+this.phase;
+    const L=s*(0.95+Math.sin(t*.03+i)*.06);
+    ctx.save();ctx.translate(px,py);ctx.rotate(a);
+    const g=ctx.createLinearGradient(0,0,0,-L);
+    g.addColorStop(0,'#fff8dc');g.addColorStop(1,`hsl(${this.hue},70%,${62+b*22}%)`);
+    ctx.fillStyle=g;
+    ctx.beginPath();ctx.ellipse(0,-L*.52,s*.30,L*.55,0,0,6.28);ctx.fill();
+    ctx.restore();
+   }
+   // марказ
+   const cg=ctx.createRadialGradient(px,py,0,px,py,s*.32);
+   cg.addColorStop(0,'#ffd166');cg.addColorStop(1,'#e09f3e');
+   ctx.fillStyle=cg;ctx.beginPath();ctx.arc(px,py,s*.30,0,6.28);ctx.fill();
+   ctx.globalAlpha=1;
+   // гулгум
+   ctx.fillStyle='rgba(255,255,255,.75)';
+   for(let i=0;i<12;i++){const a=i*2.4+this.phase;
+    ctx.beginPath();ctx.arc(px+Math.cos(a)*s*.16,py+Math.sin(a)*s*.16,1.6,0,6.28);ctx.fill()}
+  }
+  ctx.restore();
+ }
+}
+
+/* ---------- Замин ---------- */
+function ground(){const y=h()*.88;
+ const g=ctx.createLinearGradient(0,y,0,h());g.addColorStop(0,'#1b4332');g.addColorStop(1,'#08120e');
+ ctx.fillStyle=g;ctx.fillRect(0,y,w(),h()-y)}
+function stars(){for(let i=0;i<70;i++){const x=(i*97)%w(),y=(i*53)%(h()*.6);
+ ctx.fillStyle='rgba(255,255,255,'+(0.15+0.5*Math.abs(Math.sin(t*.02+i)))+')';
+ ctx.beginPath();ctx.arc(x,y,1.4,0,6.28);ctx.fill()}}
+
+/* ---------- Аниматсия ---------- */
+function loop(){
+ t++;
+ ctx.clearRect(0,0,w(),h());
+ stars();ground();
+ flowers.forEach(f=>{f.step();f.draw()});
+ // гулғурза
+ if(Math.random()<.28)pollen.push({x:Math.random()*w(),y:Math.random()*h()*.8,r:rnd(1,2.6),
+  vx:rnd(-.25,.25),vy:rnd(-.35,-.1),a:1});
+ pollen=pollen.filter(p=>{p.x+=p.vx+Math.sin(t*.03)*.15;p.y+=p.vy;p.a-=.006;
+  if(p.a>0){ctx.fillStyle='rgba(255,240,180,'+p.a+')';ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.28);ctx.fill()}
+  return p.a>0});
+ // таноб
+ if(yesPressed&&Math.random()<.3)particles.push({x:w()/2,y:h()*.3,vx:rnd(-2,2),vy:rnd(-4,-1),
+  e:'❤',size:rnd(14,26),rot:rnd(-.3,.3),vr:rnd(-.05,.05),life:1});
+ particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.05;p.rot+=p.vr;p.life-=.008;
+  ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot);ctx.globalAlpha=Math.max(0,p.life);
+  ctx.font=p.size+'px serif';ctx.fillText(p.e,0,0);ctx.restore();return p.life>0});
+ requestAnimationFrame(loop);
+}
+
+/* ---------- Тарзи кор ---------- */
+function seed(){flowers=[];const n=Math.round(w()/95);
+ for(let i=0;i<n;i++){flowers.push(new Flower(rnd(30,w()-30),h()*rnd(.9,1.0),i*22))}
+ // як гул калон дар марказ
+ flowers.push(new Flower(w()/2,h()*1.0,0));
+ flowers[flowers.length-1].size=46;flowers[flowers.length-1].max=1.1;
+}
+seed();addEventListener('resize',seed);
+
+cv.addEventListener('click',e=>{
+ const x=e.clientX;
+ const f=flowers.reduce((a,b)=>Math.abs(b.x-x)<Math.abs(a.x-x)?b:a);
+ if(f.g>0.4){f.g=Math.max(0,f.g-.35);f.bloom=0}
+ else{flowers.push(new Flower(rnd(30,w()-30),h()*rnd(.9,1.0),0))}
+});
+
+document.getElementById('yes').onclick=()=>{
+ yesPressed=true;count++;
+ document.getElementById('count').textContent=count;
+ const m=[
+  'ҲА?! Ромашкаи ту нав шуд! 🌼❤️',
+  'Машърурӣ, то дар шарт... Дил мӯрда аст ❤️',
+  'Шумо дӯст доред — инро дар дил нигоҳ медорам 💕',
+  'Як бурд! Ҳар бурд як гул 🌸'
+ ];
+ document.getElementById('msg').textContent=m[Math.floor(Math.random()*m.length)];
+};
+document.getElementById('no').onclick=()=>{
+ noCount++;
+ const m=['Ох... танҳо як гул хушуд 🌼','Гулҳо низ оран мегиранд...','Хуб, дар куҷо будӣ? 😢'];
+ document.getElementById('msg').textContent=m[Math.min(noCount-1,2)];
+ if(noCount>=3){
+  document.getElementById('msg').textContent='Ҳа... ё ту бе ҳисоб ҳам мӯҳибӣ мӯсалламӣ мӯҳаббат аст!';
+  document.getElementById('yes').style.transform='scale(1.3)';
+ }
+};
+loop();
+</script>
+</body>
+</html>
