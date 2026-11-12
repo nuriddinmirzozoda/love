@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Гули Ромашка — Любишь / Не любишь</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  body {
+    min-height: 100vh;
+    background: radial-gradient(circle at top, #1b2a4a 0%, #0d1526 65%, #070b14 100%);
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    overflow: hidden;
+    color: #fff;
+    padding: 24px 16px;
+  }
+  canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+    cursor: pointer;
+  }
+  .top-ui {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    pointer-events: none;
+  }
+  h1 {
+    font-size: clamp(24px, 4.5vw, 38px);
+    background: linear-gradient(90deg, #ffd166, #ffffff, #ff9ec7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 6px;
+  }
+  .sub {
+    font-size: clamp(13px, 2vw, 16px);
+    color: #b8c7d9;
+  }
+
+  .status-box {
+    position: relative;
+    z-index: 2;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(12px);
+    border-radius: 24px;
+    padding: 16px 32px;
+    text-align: center;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
+    min-width: 280px;
+    transition: transform 0.2s ease, border-color 0.3s ease;
+  }
+  #status-text {
+    font-size: clamp(24px, 5vw, 36px);
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #ffd166;
+    text-shadow: 0 4px 15px rgba(255, 209, 102, 0.35);
+    transition: all 0.25s ease;
+  }
+  #petals-left {
+    margin-top: 6px;
+    font-size: 14px;
+    color: #9fb3c8;
+  }
+  #restart-btn {
+    display: none;
+    margin: 14px auto 0;
+    padding: 10px 26px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 30px;
+    background: linear-gradient(90deg, #ff5f8f, #ff9a76);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(255, 95, 143, 0.45);
+    transition: transform 0.2s;
+    pointer-events: auto;
+  }
+  #restart-btn:hover { transform: scale(1.06); }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div class="top-ui">
+  <h1>🌼 Гули Ромашка</h1>
+  <p class="sub">Ба рӯи гул клик кун, то баргҳояш резанд...</p>
+</div>
+
+<div class="status-box" id="box">
+  <div id="status-text">Ба гул клик кун 🌼</div>
+  <div id="petals-left">Баргҳои боқимонда: <span id="count">0</span></div>
+  <button id="restart-btn">🔄 Аз нав сар кардан</button>
+</div>
+
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const statusText = document.getElementById('status-text');
+const countSpan = document.getElementById('count');
+const restartBtn = document.getElementById('restart-btn');
+const box = document.getElementById('box');
+
+let W, H, DPR;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = cv.width = window.innerWidth * DPR;
+  H = cv.height = window.innerHeight * DPR;
+  cv.style.width = window.innerWidth + 'px';
+  cv.style.height = window.innerHeight + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const w = () => window.innerWidth;
+const h = () => window.innerHeight;
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+let t = 0;
+let petals = [];
+let fallingPetals = [];
+let hearts = [];
+let stars = [];
+let clickStep = 0; // 1 = Любишь, 2 = Не любишь
+let totalPetals = 0;
+let isLoves = false;
+
+// Ситораҳои осмон
+for (let i = 0; i < 80; i++) {
+  stars.push({
+    x: Math.random(),
+    y: Math.random() * 0.75,
+    r: rnd(0.8, 2),
+    phase: rnd(0, Math.PI * 2)
+  });
+}
+
+function initFlower() {
+  petals = [];
+  fallingPetals = [];
+  hearts = [];
+  clickStep = 0;
+  restartBtn.style.display = 'none';
+  statusText.textContent = 'Ба гул клик кун 🌼';
+  statusText.style.color = '#ffd166';
+  box.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+
+  // Шумораи тасодуфии баргҳо (аз 11 то 16), то натиҷа ҳамеша шавқовар бошад
+  totalPetals = Math.floor(rnd(11, 17));
+  for (let i = 0; i < totalPetals; i++) {
+    petals.push({
+      baseAngle: (i / totalPetals) * Math.PI * 2,
+      wobble: rnd(0, 6.28),
+      scale: 1
+    });
+  }
+  countSpan.textContent = petals.length;
+}
+
+function getFlowerCenter() {
+  const sway = Math.sin(t * 0.02) * 8;
+  return {
+    x: w() / 2 + sway,
+    y: h() * 0.44
+  };
+}
+
+function pluckPetal() {
+  if (petals.length === 0) return;
+
+  // Интихоби як барги тасодуфӣ барои кандан
+  const idx = Math.floor(Math.random() * petals.length);
+  const removed = petals.splice(idx, 1)[0];
+  const center = getFlowerCenter();
+  const petalLen = Math.min(w(), h()) * 0.16;
+
+  // Илова ба рӯйхати баргҳои резанда
+  fallingPetals.push({
+    x: center.x + Math.cos(removed.baseAngle) * (petalLen * 0.5),
+    y: center.y + Math.sin(removed.baseAngle) * (petalLen * 0.5),
+    angle: removed.baseAngle,
+    vx: Math.cos(removed.baseAngle) * rnd(1.5, 3.5) + rnd(-1, 1),
+    vy: rnd(-2.5, -0.5),
+    vRot: rnd(-0.06, 0.06),
+    len: petalLen,
+    alpha: 1
+  });
+
+  clickStep++;
+  isLoves = (clickStep % 2 === 1); // Тоқ = Любишь, Ҷуфт = Не любишь
+  countSpan.textContent = petals.length;
+
+  // Аниматсияи қуттии матн
+  box.style.transform = 'scale(1.06)';
+  setTimeout(() => box.style.transform = 'scale(1)', 150);
+
+  if (petals.length > 0) {
+    if (isLoves) {
+      statusText.textContent = 'Любишь ❤️';
+      statusText.style.color = '#ff6b9d';
+      box.style.borderColor = 'rgba(255, 107, 157, 0.6)';
+      spawnHearts(4);
+    } else {
+      statusText.textContent = 'Не любишь 💔';
+      statusText.style.color = '#8ecae6';
+      box.style.borderColor = 'rgba(142, 202, 230, 0.5)';
+    }
+  } else {
+    // Охирин барг канда шуд!
+    if (isLoves) {
+      statusText.textContent = '🎉 ЛЮБИШЬ! ❤️✨';
+      statusText.style.color = '#ff4d8d';
+      box.style.borderColor = '#ff4d8d';
+      spawnHearts(25);
+    } else {
+      statusText.textContent = '💔 НЕ ЛЮБИШЬ...';
+      statusText.style.color = '#a0b4c8';
+      box.style.borderColor = '#a0b4c8';
+    }
+    restartBtn.style.display = 'inline-block';
+  }
+}
+
+function spawnHearts(n) {
+  const c = getFlowerCenter();
+  for (let i = 0; i < n; i++) {
+    hearts.push({
+      x: c.x + rnd(-40, 40),
+      y: c.y + rnd(-30, 30),
+      vx: rnd(-2.5, 2.5),
+      vy: rnd(-4.5, -1.5),
+      size: rnd(16, 28),
+      alpha: 1
+    });
+  }
+}
+
+function drawDaisyPetal(x, y, angle, len, alpha = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.globalAlpha = alpha;
+
+  const width = len * 0.28;
+  const grad = ctx.createLinearGradient(0, 0, len, 0);
+  grad.addColorStop(0, '#ffe8a3');
+  grad.addColorStop(0.25, '#ffffff');
+  grad.addColorStop(1, '#f0f4f8');
+
+  ctx.fillStyle = grad;
+  ctx.shadowColor = 'rgba(0,0,0,0.25)';
+  ctx.shadowBlur = 8;
+
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(len * 0.3, -width, len * 0.85, -width * 0.8, len, 0);
+  ctx.bezierCurveTo(len * 0.85, width * 0.8, len * 0.3, width, 0, 0);
+  ctx.fill();
+
+  // Хати нозук дар мобайни барги ромашка
+  ctx.strokeStyle = 'rgba(220, 230, 240, 0.6)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(len * 0.15, 0);
+  ctx.lineTo(len * 0.82, 0);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function draw() {
+  t++;
+  ctx.clearRect(0, 0, w(), h());
+
+  // 1. Ситораҳо
+  for (const s of stars) {
+    const a = 0.2 + 0.6 * Math.abs(Math.sin(t * 0.02 + s.phase));
+    ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
+    ctx.beginPath();
+    ctx.arc(s.x * w(), s.y * h(), s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 2. Замин
+  const groundY = h() * 0.88;
+  const gGrad = ctx.createLinearGradient(0, groundY, 0, h());
+  gGrad.addColorStop(0, '#163828');
+  gGrad.addColorStop(1, '#07120d');
+  ctx.fillStyle = gGrad;
+  ctx.fillRect(0, groundY, w(), h() - groundY);
+
+  const center = getFlowerCenter();
+  const baseX = w() / 2;
+  const baseY = h() * 0.92;
+  const petalLen = Math.min(w(), h()) * 0.16;
+  const coreRadius = petalLen * 0.28;
+
+  // 3. Пояи гул (Стебель)
+  ctx.save();
+  ctx.strokeStyle = '#2d8a56';
+  ctx.lineWidth = 9;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(baseX, baseY);
+  ctx.quadraticCurveTo(baseX + (center.x - baseX) * 0.4, (baseY + center.y) / 2, center.x, center.y);
+  ctx.stroke();
+
+  // Баргҳои сабз дар поя
+  for (const side of [-1, 1]) {
+    ctx.save();
+    const ly = baseY - (baseY - center.y) * (side === -1 ? 0.35 : 0.5);
+    const lx = baseX + (center.x - baseX) * 0.3;
+    ctx.translate(lx, ly);
+    ctx.rotate(side * 0.65 + Math.sin(t * 0.025) * 0.05);
+    ctx.fillStyle = '#38a366';
+    ctx.beginPath();
+    ctx.ellipse(side * 42, 0, 44, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // 4. Баргҳои сафеди Ромашка (дар гул буда)
+  for (const p of petals) {
+    const wave = Math.sin(t * 0.03 + p.wobble) * 0.03;
+    drawDaisyPetal(center.x, center.y, p.baseAngle + wave, petalLen, 1);
+  }
+
+  // 5. Маркази зарди Ромашка
+  ctx.save();
+  const coreGrad = ctx.createRadialGradient(
+    center.x - coreRadius * 0.25,
+    center.y - coreRadius * 0.25,
+    coreRadius * 0.1,
+    center.x,
+    center.y,
+    coreRadius
+  );
+  coreGrad.addColorStop(0, '#ffe066');
+  coreGrad.addColorStop(0.7, '#f59f00');
+  coreGrad.addColorStop(1, '#d97706');
+
+  ctx.fillStyle = coreGrad;
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, coreRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Нуқтаҳои хурди гарди гул дар марказ
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(140, 70, 0, 0.35)';
+  for (let i = 0; i < 24; i++) {
+    const a = i * 2.39996; // кунҷи тиллоӣ
+    const r = Math.sqrt(i / 24) * (coreRadius * 0.78);
+    ctx.beginPath();
+    ctx.arc(center.x + Math.cos(a) * r, center.y + Math.sin(a) * r, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // 6. Баргҳои резанда (аниматсияи афтидан)
+  fallingPetals = fallingPetals.filter(fp => {
+    fp.x += fp.vx + Math.sin(t * 0.05 + fp.angle) * 0.8;
+    fp.y += fp.vy;
+    fp.vy += 0.08; // ҷозиба
+    fp.angle += fp.vRot;
+    if (fp.y > h() * 0.85) fp.alpha -= 0.025;
+
+    if (fp.alpha > 0) {
+      drawDaisyPetal(fp.x, fp.y, fp.angle, fp.len * 0.95, fp.alpha);
+      return true;
+    }
+    return false;
+  });
+
+  // 7. Дилчаҳои парвозкунанда
+  hearts = hearts.filter(ht => {
+    ht.x += ht.vx;
+    ht.y += ht.vy;
+    ht.alpha -= 0.012;
+    if (ht.alpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = ht.alpha;
+      ctx.font = `${ht.size}px serif`;
+      ctx.fillText('❤️', ht.x, ht.y);
+      ctx.restore();
+      return true;
+    }
+    return false;
+  });
+
+  requestAnimationFrame(draw);
+}
+
+// Клики муш ё ламси экран
+cv.addEventListener('click', () => {
+  if (petals.length > 0) {
+    pluckPetal();
+  }
+});
+
+restartBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  initFlower();
+});
+
+initFlower();
+draw();
+</script>
+</body>
+</html>
